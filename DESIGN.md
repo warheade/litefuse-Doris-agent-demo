@@ -285,7 +285,7 @@ First setup against a real warehouse hit eight problems, and two more showed up 
 | --- | --- | --- |
 | HTTP endpoint unreachable over `https://` | The warehouse serves Stream Load on plain HTTP, port 8080 | `DORIS_FE_HTTP_URL=http://<host>:8080` |
 | SQL login times out on the JDBC port 9962 | That port accepts TCP but never sends a MySQL handshake | Use port 9030 on the same host |
-| Every query fails: compute group `victor_test` not found | The user's default compute group had been deleted | `SET PROPERTY FOR 'victor' 'default_compute_group'='for_query'` |
+| Every query fails: compute group `<old_group>` not found | The user's default compute group had been deleted | `SET PROPERTY FOR '<user>' 'default_compute_group'='<existing_group>'` |
 | Litefuse migrations print "applied successfully" despite SQL errors | Litefuse's migration script does not stop on errors | Check `make logs` for `ERROR 1105` after first boot |
 | `make seed` crashes parsing dataset items (`media_references` missing) | Langfuse SDK 4.11+ requires a field that Litefuse 26.2.0 does not return | `demo/config.py` makes the field optional at import time |
 | Traces rejected: invalid Doris split-table project ID | Project ID `agent-demo` contains a hyphen | Renamed to `agent_demo` |
