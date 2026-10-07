@@ -1,0 +1,151 @@
+# Litefuse (web + worker + postgres + redis + minio) running locally, with the
+# analytics backend on a VeloDB Cloud warehouse instead of the bundled Doris.
+#
+# Derived from https://github.com/litefuse/litefuse/blob/main/docker-compose.yml
+# (image 26.2.0): the doris_fe / doris_be services and the doris_internal network
+# are removed and every DORIS_* variable points at VeloDB.
+#
+# Run from the repo root:  docker compose -f deploy/docker-compose.yml --env-file .env up -d
+# (or simply `make up`).
+services:
+  litefuse-web:
+    image: litefuse/litefuse-web:${LITEFUSE_VERSION:-26.2.0}
+    restart: always
+    depends_on: &litefuse-depends-on
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - 3000:3000
+    environment: &litefuse-env
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-demo-nextauth-secret}
+      HOSTNAME: "0.0.0.0"
+      PORT: "3000"
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres
+      SALT: ${SALT:-demo-salt}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+      TELEMETRY_ENABLED: "false"
+      LITEFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"
+
+      # ---- Analytics backend: VeloDB Cloud (Apache Doris compatible) ----
+      LITEFUSE_ANALYTICS_BACKEND: doris
+      # Litefuse creates its schema on VeloDB at startup.
+      LITEFUSE_AUTO_DORIS_MIGRATION_DISABLED: "false"
+      DORIS_URL: ${DORIS_FE_HTTP_URL:?set DORIS_FE_HTTP_URL in .env}
+      DORIS_FE_HTTP_URL: ${DORIS_FE_HTTP_URL:?set DORIS_FE_HTTP_URL in .env}
+      DORIS_FE_QUERY_PORT: ${DORIS_FE_QUERY_PORT:-9030}
+      DORIS_DB: ${DORIS_DB:-litefuse}
+      DORIS_USER: ${DORIS_USER:-admin}
+      DORIS_PASSWORD: ${DORIS_PASSWORD:?set DORIS_PASSWORD in .env}
+      DORIS_MAX_OPEN_CONNECTIONS: ${DORIS_MAX_OPEN_CONNECTIONS:-50}
+      DORIS_REQUEST_TIMEOUT_MS: ${DORIS_REQUEST_TIMEOUT_MS:-60000}
+      # VeloDB separates compute and storage; single-replica tables are correct there.
+      DORIS_REPLICATION_NUM: ${DORIS_REPLICATION_NUM:-1}
+      LITEFUSE_OTEL_GROUP_FLUSH_MS: ${LITEFUSE_OTEL_GROUP_FLUSH_MS:-1000}
+      # Litefuse Cloud billing job; on a self-hosted stack it only stalls and logs errors.
+      QUEUE_CONSUMER_FREE_TIER_USAGE_THRESHOLD_QUEUE_IS_ENABLED: "false"
+
+      # ---- Blob storage (local MinIO) ----
+      LITEFUSE_S3_EVENT_UPLOAD_BUCKET: litefuse
+      LITEFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LITEFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+      LITEFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+      LITEFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+      LITEFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LITEFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      LITEFUSE_S3_MEDIA_UPLOAD_BUCKET: litefuse
+      LITEFUSE_S3_MEDIA_UPLOAD_REGION: auto
+      LITEFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio
+      LITEFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+      LITEFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://localhost:9090
+      LITEFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+      LITEFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_AUTH: myredissecret
+      REDIS_TLS_ENABLED: "false"
+
+      # ---- Headless bootstrap: org, project, login and API keys ----
+      LITEFUSE_INIT_ORG_ID: ${LITEFUSE_INIT_ORG_ID:-velodb-demo}
+      LITEFUSE_INIT_ORG_NAME: ${LITEFUSE_INIT_ORG_NAME:-VeloDB Demo}
+      # Must match ^[A-Za-z0-9_]+$ : the id becomes part of the per-project Doris table names.
+      LITEFUSE_INIT_PROJECT_ID: ${LITEFUSE_INIT_PROJECT_ID:-agent_demo}
+      # Display name only; any text is fine.
+      LITEFUSE_INIT_PROJECT_NAME: ${LITEFUSE_INIT_PROJECT_NAME:-Agent Demo}
+      LITEFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-velodb-demo}
+      LITEFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-velodb-demo}
+      LITEFUSE_INIT_USER_EMAIL: ${LITEFUSE_INIT_USER_EMAIL:-demo@velodb.io}
+      LITEFUSE_INIT_USER_NAME: ${LITEFUSE_INIT_USER_NAME:-Demo User}
+      LITEFUSE_INIT_USER_PASSWORD: ${LITEFUSE_INIT_USER_PASSWORD:-velodb-demo}
+
+  litefuse-worker:
+    image: litefuse/litefuse-worker:${LITEFUSE_VERSION:-26.2.0}
+    restart: always
+    depends_on: *litefuse-depends-on
+    ports:
+      - 127.0.0.1:3030:3030
+    environment:
+      <<: *litefuse-env
+
+  minio:
+    image: cgr.dev/chainguard/minio
+    restart: always
+    entrypoint: sh
+    command: -c 'mkdir -p /data/litefuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: miniosecret
+    ports:
+      - 9090:9000
+      - 127.0.0.1:9091:9001
+    volumes:
+      - litefuse_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 1s
+      timeout: 5s
+      retries: 5
+      start_period: 1s
+
+  redis:
+    image: docker.io/redis:7
+    restart: always
+    command: --requirepass myredissecret --maxmemory-policy noeviction
+    ports:
+      - 127.0.0.1:6379:6379
+    volumes:
+      - litefuse_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 10s
+      retries: 10
+
+  postgres:
+    image: docker.io/postgres:17
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - 127.0.0.1:5432:5432
+    volumes:
+      - litefuse_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  litefuse_postgres_data:
+  litefuse_minio_data:
+  litefuse_redis_data:
