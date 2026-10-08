@@ -148,6 +148,8 @@ def main() -> None:
     ap.add_argument("--label", default="production", help="prompt label: v1 | v2 | production")
     ap.add_argument("--user", default="u-cli")
     args = ap.parse_args()
+    if not args.message.strip():
+        ap.error("message is empty; pass a question, or omit it for the sample question")
 
     agent = SupportAgent(get_provider(args.provider), prompt_label=args.label)
     res = agent.respond(args.message, user_id=args.user, session_id="cli-session")

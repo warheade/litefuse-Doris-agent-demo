@@ -9,7 +9,7 @@ help:
 	@echo "make up          start Litefuse (web/worker/pg/redis/minio) -> VeloDB Cloud"
 	@echo "make seed        register prompt v1/v2 and the support-golden dataset"
 	@echo "make simulate    generate multi-turn agent traffic (SESSIONS=$(SESSIONS), mixed providers/prompts)"
-	@echo "make ask Q='..'  ask the agent a single question"
+	@echo "make ask Q='..'  ask the agent a single question (no Q: a sample order-status question)"
 	@echo "make experiment  run the golden dataset (LABEL=v1|v2, PROVIDER=claude|openai)"
 	@echo "make compare     run v1 and v2 back to back"
 	@echo "make verify      query VeloDB directly to show where the data lives"
@@ -46,7 +46,7 @@ simulate:
 	$(PY) demo.simulate --sessions $(SESSIONS) --mix
 
 ask:
-	$(PY) demo.agent "$(Q)" $(if $(PROVIDER),--provider $(PROVIDER))
+	$(PY) demo.agent $(if $(Q),"$(Q)") $(if $(PROVIDER),--provider $(PROVIDER))
 
 experiment:
 	$(PY) demo.eval.run_experiment --label $(LABEL) $(if $(PROVIDER),--provider $(PROVIDER))

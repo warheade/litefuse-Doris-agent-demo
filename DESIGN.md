@@ -236,7 +236,7 @@ From VeloDB JDBC details `jdbc:mysql://<host>:<port>/<db>`: the host goes into `
 | 4 | `make compare` | Runs the dataset on v1, then v2, with 4 evaluators per item | 30 agent runs + 30 judge calls |
 | 5 | `make verify` | Queries VeloDB directly: table row counts and the latest traces joined with their spans | none |
 
-Other targets: `make ask Q="..."` (one question, prints the trace URL), `make experiment LABEL=v2 PROVIDER=openai`, `make simulate SESSIONS=60`, `make logs`, `make down` (stop, keep data), `make reset` (also wipe local volumes). `make` targets are shortcuts defined in the `Makefile`; each runs `uv run python -m demo.<module>` or a `docker compose` command.
+Other targets: `make ask Q="..."` (one question, prints the trace URL; without `Q` it asks a sample order-status question), `make experiment LABEL=v2 PROVIDER=openai`, `make simulate SESSIONS=60`, `make logs`, `make down` (stop, keep data), `make reset` (also wipe local volumes). `make` targets are shortcuts defined in the `Makefile`; each runs `uv run python -m demo.<module>` or a `docker compose` command.
 
 Log in at http://localhost:3000 as `demo@velodb.io` / `velodb-demo`.
 
