@@ -53,7 +53,7 @@ With an external Doris, Litefuse 26.2.0 runs as the upstream Compose file descri
 
 | Component | Image / runtime | Role | Data it holds |
 | --- | --- | --- | --- |
-| litefuse-web | `litefuse/litefuse-web:26.2.0` | UI, public API, OTLP ingestion endpoint, Doris schema migrations on boot | none |
+| litefuse-web | `litefuse/litefuse-web:26.2.0` | UI, public API, OTLP (OpenTelemetry Protocol) ingestion endpoint, Doris schema migrations on boot | none |
 | litefuse-worker | `litefuse/litefuse-worker:26.2.0` | Consumes queued events, batches them, loads them into VeloDB; provisions per-project tables | none |
 | Postgres 17 | `postgres:17` | Litefuse metadata | Users, orgs, projects, API keys, prompts, datasets and dataset items, evaluator configs |
 | Redis 7 | `redis:7` | Job queue between web and worker | Transient queue state |
