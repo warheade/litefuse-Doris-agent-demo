@@ -33,7 +33,7 @@ LLM engineering platform whose analytics backend is **Apache Doris**, here runni
 
 1. **Docker**: [OrbStack](https://orbstack.dev) or Docker Desktop.
 2. **A VeloDB Cloud warehouse.** In the console, open *Connection* and note:
-   * the **HTTP endpoint** (used for Stream Load), with the scheme and port the page shows, e.g. `http://<host>:8080`. It is not part of the JDBC URL.
+   * the **HTTP endpoint** (used for Stream Load), with the scheme and port the page shows, e.g. `https://<warehouse-id>.<region>.aws.velodb.cloud:8080`. It is not part of the JDBC URL. Use the `*.velodb.cloud` hostname, which the TLS certificate covers; the same host also serves the MySQL port.
    * the **MySQL port** (usually `9030`), the user and the password
    * Allow-list your public IP for both ports.
 3. **An LLM key:** `ANTHROPIC_API_KEY`, and/or an OpenAI-compatible key, base URL and model.

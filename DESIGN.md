@@ -226,7 +226,7 @@ From a clean laptop, setup takes about 15 minutes plus image pulls; the full dat
 
 Copy `.env.example` to `.env` and fill in the VeloDB connection and one LLM key. Never put real credentials in `.env.example`; only `.env` is git-ignored.
 
-From VeloDB JDBC details `jdbc:mysql://<host>:<port>/<db>`: the host goes into `DORIS_FE_HTTP_URL`, and the port into `DORIS_FE_QUERY_PORT`. The HTTP port for Stream Load is separate and not in the JDBC URL; find it on the warehouse's Connection page. Check the scheme too: the test warehouse serves plain `http://` on port 8080.
+From VeloDB JDBC details `jdbc:mysql://<host>:<port>/<db>`: the host goes into `DORIS_FE_HTTP_URL`, and the port into `DORIS_FE_QUERY_PORT`. The HTTP port for Stream Load is separate and not in the JDBC URL; find it on the warehouse's Connection page. Check the scheme too: since early November 2026 the test warehouse serves Stream Load over HTTPS on port 8080, with a certificate for `*.<region>.aws.velodb.cloud`. Use that hostname, not the raw load-balancer address, or certificate verification fails. Litefuse reads SQL from the same host on `DORIS_FE_QUERY_PORT`.
 
 ### Run
 
@@ -281,12 +281,13 @@ All settings live in `.env`, read by both `docker compose` and the Python demo.
 
 ## Known issues and next steps
 
-First setup against a real warehouse hit eight problems, two more showed up in the worker logs during the first two weeks of running, and the 30-day retention surfaced after six weeks. Nine are fixed or worked around in the repo; two are open in Litefuse.
+First setup against a real warehouse hit eight problems, two more showed up in the worker logs during the first two weeks of running, and three surfaced after six weeks: the 30-day retention and the warehouse's switch to HTTPS, which brought a slow-response problem with it. Ten are fixed or worked around in the repo; three are open.
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| HTTP endpoint unreachable over `https://` | The warehouse serves Stream Load on plain HTTP, port 8080 | `DORIS_FE_HTTP_URL=http://<host>:8080` |
-| SQL login times out on the JDBC port 9962 | That port accepts TCP but never sends a MySQL handshake | Use port 9030 on the same host |
+| Every Stream Load fails with `Parse Error: Expected HTTP/`, and no new traces reach VeloDB (from early November 2026) | Port 8080 switched from plain HTTP to HTTPS. Its certificate covers `*.<region>.aws.velodb.cloud`, not the load-balancer hostname `.env` used | `DORIS_FE_HTTP_URL=https://<warehouse-id>.<region>.aws.velodb.cloud:8080`, then `make up` to recreate web and worker |
+| After the HTTPS switch, each Stream Load logs `BE body PUT ...:9962 ... timeout of 60000ms exceeded` and is retried | The front end redirects the body to a back end on port 9962. The rows are committed, but the response does not arrive before the 60 s timeout. Retries reuse the load label, so no rows are duplicated | Open: data lands, but each load takes 60 s or more. Check row counts with `make verify` instead of trusting the worker log |
+| SQL login times out on the JDBC port 9962 | That port is the back end's HTTPS Stream Load port, not MySQL | Use port 9030 on the same host |
 | Every query fails: compute group `<old_group>` not found | The user's default compute group had been deleted | `SET PROPERTY FOR '<user>' 'default_compute_group'='<existing_group>'` |
 | Litefuse migrations print "applied successfully" despite SQL errors | Litefuse's migration script does not stop on errors | Check `make logs` for `ERROR 1105` after first boot |
 | `make seed` crashes parsing dataset items (`media_references` missing) | Langfuse SDK 4.11+ requires a field that Litefuse 26.2.0 does not return | `demo/config.py` makes the field optional at import time |
