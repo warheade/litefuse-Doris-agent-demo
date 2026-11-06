@@ -12,7 +12,7 @@ This demo runs a tool-using customer-support agent, traces and evaluates it with
 
 - Every agent step (model call, tool call, tokens, cost, errors) is captured as a trace tree and queryable in VeloDB over the MySQL protocol.
 - Online signals (user thumbs, session resolution, policy-violation flags) and offline experiments (a 15-case golden dataset, rule-based checks plus an LLM judge) sit side by side.
-- A prompt change can be proven better before it ships: with Claude Haiku 4.5 as the agent, prompt v2 lifted policy compliance from 0.80 to 1.00 (measured 25 Sep 2026, before the 7 Oct dataset changes; see [Measured result](#offline-golden-dataset-and-experiments)).
+- A prompt change can be proven better before it ships: with Claude Haiku 4.5 as the agent, prompt v2 lifts policy compliance from 0.80 to 1.00 (measured 6 Nov 2026; see [Measured result](#offline-golden-dataset-and-experiments)).
 
 **Non-goals:** production hardening, multi-tenant setup, or benchmarking VeloDB against ClickHouse. The store backend is mocked, and Litefuse runs on a laptop in Docker.
 
@@ -159,7 +159,7 @@ support-agent (agent)
 
 ## Evaluation design
 
-On the golden dataset with Claude Haiku 4.5 as the agent, prompt v2 scored 1.00 on policy compliance versus 0.80 for v1, and the judge rated it 4.47 versus 3.2 (25 Sep 2026 run; see the note under Measured result). The demo evaluates in two ways: offline experiments on a fixed dataset, and online scores attached to simulated production traffic.
+On the golden dataset with Claude Haiku 4.5 as the agent, prompt v2 scores 1.00 on policy compliance versus 0.80 for v1, and the judge rates it 4.27 versus 3.33 (6 Nov 2026 run). The demo evaluates in two ways: offline experiments on a fixed dataset, and online scores attached to simulated production traffic.
 
 ### Offline: golden dataset and experiments
 
@@ -188,18 +188,22 @@ A run-level evaluator stores the averages, so runs compare side by side in the U
 
 `make simulate` has no dataset or judge. It posts the signals a live app would collect (`policy-violation`, `user-feedback`, `resolution`), so simulate is production-style monitoring and compare is a controlled before-and-after test.
 
-**Measured result** (Claude Haiku 4.5 agent, 25 Sep 2026):
+**Measured result** (Claude Haiku 4.5 agent, 6 Nov 2026, the first run after the 7 Oct dataset and prompt changes):
 
 | Average score | v1 | v2 |
 | --- | --- | --- |
 | Policy compliance | 0.80 | 1.00 |
-| Fact coverage | 0.73 | 1.00 |
-| Tool recall | 0.87 | 1.00 |
-| Helpfulness (1 to 5) | 3.2 | 4.47 |
+| Fact coverage | 0.69 | 0.92 |
+| Tool recall | 0.83 | 0.93 |
+| Helpfulness (1 to 5) | 3.33 | 4.27 |
 
-v1 fails `refund-day-31`, `refund-out-of-window` and `refund-damaged-late-ok`; v2 passes all 15.
+On policy, v1 fails `refund-day-31` and `refund-out-of-window` by refunding orders past the window, and `refund-in-window` by not refunding the leaking tent (VO-1001, delivered 5 days earlier); v2 passes all 15. v2's lower tool recall and fact coverage come from one case, `stock-out-restock`, where it answered without calling `check_inventory`.
 
-> **These numbers predate the 7 Oct 2026 changes; re-run `make compare` before quoting them.** Three things changed. VO-1006 now has a delivery date 75 days back instead of 29. The `cancel_order` tool was added, and `cancel-processing` now requires the cancellation itself. Prompt v2 gained the cancellation and warranty rules (Litefuse version 3). The VO-1006 change fixes a contradiction: at 29 days the order was still inside the refund window, so a v2 agent that followed its own policy and refunded the broken zipper failed `warranty-escalation`, which forbade the refund. Simulated sessions treated the same refund as fine. Now the order is clearly past the window, the case and the simulation agree, and the new prompt rule settles which comes first for a defect: a refund within 30 days, escalation as a warranty claim after. The agent model matters: an earlier simulation with Claude Sonnet 5 produced only one policy violation under v1, because the stronger model applied the policy unprompted. Haiku 4.5 gives the clearer contrast.
+Scores move between runs, because both the agent and the judge are LLMs. An earlier run on 6 Nov, whose traces never reached VeloDB because of the HTTPS switch, had v1 at 0.87 policy compliance and v2 at 1.00 on all four averages. Quote the direction (v2 never refunds out of policy; v1 does on most runs), not the second decimal.
+
+The 25 Sep results (v1 0.80, v2 1.00 policy compliance; judge 3.2 versus 4.47) predate three changes made on 7 Oct: VO-1006 moved from 29 to 75 days after delivery, `cancel_order` was added and `cancel-processing` now requires the cancellation, and prompt v2 gained the cancellation and warranty rules (Litefuse version 3). The VO-1006 change fixed a contradiction: at 29 days the order was inside the refund window, so a v2 agent that followed its policy and refunded the broken zipper failed `warranty-escalation`, while simulated sessions treated the same refund as fine.
+
+The agent model matters: an earlier simulation with Claude Sonnet 5 produced only one policy violation under v1, because the stronger model applied the policy unprompted. Haiku 4.5 gives the clearer contrast.
 
 ### Online: scores on simulated traffic
 
@@ -209,7 +213,7 @@ v1 fails `refund-day-31`, `refund-out-of-window` and `refund-damaged-late-ok`; v
 - `user-feedback` (0 or 1) on the last trace: thumbs down after a violation or tool error, otherwise thumbs up 85% of the time.
 - `resolution` (categorical) on the session: `resolved`, `unresolved` or `escalated`.
 
-The Haiku 4.5 run produced 2 policy violations, both on the day-31 refund under v1. Litefuse's managed LLM-as-judge evaluators can also score new traces continuously; that is configured in the UI and shown in the walkthrough, not scripted.
+The 6 Nov Haiku 4.5 run produced 2 policy violations, both under v1: one on the day-31 refund and one on the 52-day out-of-window refund. Sessions on v2 produced none. Litefuse's managed LLM-as-judge evaluators can also score new traces continuously; that is configured in the UI and shown in the walkthrough, not scripted.
 
 ## How to use
 
@@ -301,7 +305,7 @@ First setup against a real warehouse hit eight problems, two more showed up in t
 **Next steps:**
 
 - [x] Update `README.md` and `.env.example`, which showed an `https://...:443` endpoint example, so they match these findings.
-- [ ] Re-run `make compare` and `make simulate` on Haiku 4.5 and refresh the measured results after the 7 Oct dataset and prompt changes.
+- [x] Re-run `make compare` and `make simulate` on Haiku 4.5 and refresh the measured results after the 7 Oct dataset and prompt changes.
 - [ ] Report the SDK field mismatch, the silent migration errors and the v1 scores API bug upstream to Litefuse.
 - [ ] Add a VeloDB SQL notebook that joins trace data with business tables, the strongest argument for keeping agent data in the warehouse.
 - [ ] Decide whether the demo standardises on Haiku 4.5 or adds a deliberately weaker v1 prompt, so the v1 versus v2 contrast holds on stronger models too.

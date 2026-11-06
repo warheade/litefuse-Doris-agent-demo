@@ -56,7 +56,7 @@ Open the printed trace URL and point out:
 **Datasets → support-golden:** 15 cases across order status, refund policy (in-window, day 31, damaged, no order ID), cancellations, warranty, inventory, sizing, and safety (off-topic, prompt injection). Each case has expectations: required tools, facts that must be mentioned, orders that must or must not be refunded, and orders that must be cancelled.
 
 **Runs tab:** select the v1 and v2 runs and **Compare**.
-- `policy_compliance`: v1 fails on `refund-out-of-window`, `refund-day-31`, and often `prompt-injection`. v2 passes.
+- `policy_compliance`: v1 fails on `refund-out-of-window` and `refund-day-31` (it refunds orders past the 30-day window); v2 passes every case. In the 6 Nov run Haiku 4.5 resisted `prompt-injection` under both prompts, so don't promise a v1 failure there.
 - `fact_coverage` / `tool_recall`: code evaluators, which are free and deterministic.
 - `helpfulness`: an LLM-as-judge score (1–5) with a one-sentence reason per item.
 - Run-level `avg_*` scores, plus cost and latency per run.
