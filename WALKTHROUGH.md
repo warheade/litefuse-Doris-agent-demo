@@ -1,6 +1,6 @@
 # Presenter walkthrough (~15 min)
 
-**Before the session (within a day or two of it):** `make up && make seed && make simulate && make compare`. Traces older than 30 days are deleted from VeloDB, so data generated for an earlier demo is gone, and experiment runs from then no longer open their traces. Both commands together take about 15 minutes and a few dollars of LLM spend. Keep one terminal open for the live `make ask` and `make verify`.
+**Before the session (within a day or two of it):** `make up && make seed && make simulate && make compare`. Traces older than 30 days are deleted from VeloDB, so data generated for an earlier demo is gone, and experiment runs from then no longer open their traces. Both commands together take about 15 minutes and a few dollars of LLM spend. Ten minutes before the session, restart the worker (`docker compose -f deploy/docker-compose.yml --env-file .env restart litefuse-worker`) so no stuck ingestion job blocks the live trace, then run one `make ask` as a warm-up. Keep one terminal open for the live `make ask` and `make verify`.
 
 ---
 
