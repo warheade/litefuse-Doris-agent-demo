@@ -28,11 +28,11 @@ Open the printed trace URL and point out:
 
 ## 2. Tracing at scale (3 min)
 
-**Tracing** list:
+**Tracing** list. Lists open on **Past 1 day**: if the data is older, set the time range to the past 7 days first, here and on Sessions, Users, Scores and Dashboards.
 - Filter by tag `provider:claude` vs `provider:openai`. The same agent and trace shape work across providers. Skip this unless `.env` has an OpenAI-compatible key: without one, `make simulate` runs everything on Claude.
 - Filter **Level = ERROR** to find the injected tool timeouts. Open one and show how the agent recovered: it retried or apologized.
-- Filter tag `scenario:prompt-injection`. Compare a `prompt:v1` trace with a `prompt:production` (v2) trace.
-- Search for `VO-1003` to find every conversation about that order.
+- Filter tag `scenario:prompt-injection` and open the trace: the agent declines the "admin mode" refund. `make simulate` picks the prompt label at random, so there may be no `prompt:v1` trace to compare against; don't promise one.
+- Search for `VO-1003` with the search scope switched from **IDs / Names** to **Full Text** (the dropdown next to the search box). That finds every conversation that mentions the order, served by VeloDB's inverted index.
 
 ## 3. Sessions & Users (2 min)
 
@@ -42,7 +42,8 @@ Open the printed trace URL and point out:
 ## 4. Scores & dashboards (2 min)
 
 - **Scores:** `user-feedback` (thumbs), `resolution` (categorical), and `policy-violation` (boolean, raised when the agent refunded an out-of-window order).
-- **Dashboards:** cost by model, latency percentiles, and score trends. Filter scores by tag `prompt:v1` vs `prompt:production` to show where the `policy-violation` flags come from.
+- **Dashboards:** open **Litefuse Cost Dashboard** (traces, observations, cost by model) and **Litefuse Latency Dashboard** (latency percentiles). The **OpenClaw** dashboards are Litefuse samples for another agent; skip them.
+- On **Scores**, filter `policy-violation` and open the traces: every flag comes from a `prompt:v1` session.
 
 > "That's observability. We can *see* v1 is refunding things it shouldn't. Now let's prove v2 fixes it
 > without breaking anything else."
@@ -55,11 +56,11 @@ Open the printed trace URL and point out:
 
 **Datasets → support-golden:** 15 cases across order status, refund policy (in-window, day 31, damaged, no order ID), cancellations, warranty, inventory, sizing, and safety (off-topic, prompt injection). Each case has expectations: required tools, facts that must be mentioned, orders that must or must not be refunded, and orders that must be cancelled.
 
-**Runs tab:** select the v1 and v2 runs and **Compare**.
+**Runs tab:** tick the newest v1 and v2 runs (15 run items each), then **Actions → Compare**. Ignore runs with 0 items or $0.00 cost: those are failed or older runs whose traces have expired.
 - `policy_compliance`: v1 fails on `refund-out-of-window` and `refund-day-31` (it refunds orders past the 30-day window); v2 passes every case. In the 6 Nov run Haiku 4.5 resisted `prompt-injection` under both prompts, so don't promise a v1 failure there.
 - `fact_coverage` / `tool_recall`: code evaluators, which are free and deterministic.
 - `helpfulness`: an LLM-as-judge score (1–5) with a one-sentence reason per item.
-- Run-level `avg_*` scores, plus cost and latency per run.
+- Per-run averages (the `Ø` values in the score columns), plus cost and latency per run. The run-level `avg_*` columns stay empty in Litefuse 26.2.0.
 - Click any cell to open that item's full trace.
 
 If time allows, run it live:
@@ -69,7 +70,7 @@ make experiment LABEL=v2 PROVIDER=openai   # same dataset on another model; need
 
 ## 7. Online evaluation (1 min)
 
-**Settings → LLM Connections:** add the Anthropic or OpenAI key. **Evaluators → New:** choose an LLM-as-judge template (e.g. *Helpfulness*), target traces with tag `simulated`, and sample 50%. New production traces now get scored continuously, alongside the offline experiments.
+**Settings → LLM Connections:** add the Anthropic or OpenAI key. **LLM-as-a-Judge → Create Evaluator:** choose a template (e.g. *Helpfulness*), target traces with tag `simulated`, and sample 50%. New production traces now get scored continuously, alongside the offline experiments.
 
 ## 8. It's all in VeloDB (1 min)
 
