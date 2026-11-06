@@ -92,4 +92,5 @@ demo/verify_velodb.py       direct MySQL-protocol queries against VeloDB
 * **Stream Load fails (HTTP 307 / connection refused to a private IP).** Use the warehouse's **public HTTP endpoint** for `DORIS_FE_HTTP_URL`. A private endpoint only works when Docker runs in the same VPC.
 * **Worker logs `Doris query failed: Connection lost` about once a day.** The warehouse closed an open MySQL connection. Litefuse reconnects on the next query, so no action is needed unless it happens during a demo. Litefuse 26.2.0 has no setting for its pool's idle behaviour.
 * **Traces don't appear.** Ingestion is async (worker → VeloDB). Wait a few seconds, then check `make logs`.
+* **Older traces are missing, but their scores and experiment runs are still listed.** Litefuse keeps 30 days of traces: VeloDB drops each day's partition after that. Re-run `make simulate` and `make compare` before a demo.
 * **`make verify` lists no split tables.** Litefuse creates the per-project `spans_<project>` / `traces_scalar_<project>` tables on first ingest. Run `make simulate` first.

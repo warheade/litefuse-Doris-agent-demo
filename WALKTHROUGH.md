@@ -1,6 +1,6 @@
 # Presenter walkthrough (~15 min)
 
-**Before the session:** `make up && make seed && make simulate`, then run `make compare` once so both experiment runs exist. Keep one terminal open for the live `make ask` and `make verify`.
+**Before the session (within a day or two of it):** `make up && make seed && make simulate && make compare`. Traces older than 30 days are deleted from VeloDB, so data generated for an earlier demo is gone, and experiment runs from then no longer open their traces. Both commands together take about 15 minutes and a few dollars of LLM spend. Keep one terminal open for the live `make ask` and `make verify`.
 
 ---
 
@@ -29,7 +29,7 @@ Open the printed trace URL and point out:
 ## 2. Tracing at scale (3 min)
 
 **Tracing** list:
-- Filter by tag `provider:claude` vs `provider:openai`. The same agent and trace shape work across providers.
+- Filter by tag `provider:claude` vs `provider:openai`. The same agent and trace shape work across providers. Skip this unless `.env` has an OpenAI-compatible key: without one, `make simulate` runs everything on Claude.
 - Filter **Level = ERROR** to find the injected tool timeouts. Open one and show how the agent recovered: it retried or apologized.
 - Filter tag `scenario:prompt-injection`. Compare a `prompt:v1` trace with a `prompt:production` (v2) trace.
 - Search for `VO-1003` to find every conversation about that order.
@@ -64,7 +64,7 @@ Open the printed trace URL and point out:
 
 If time allows, run it live:
 ```bash
-make experiment LABEL=v2 PROVIDER=openai   # same dataset on another model
+make experiment LABEL=v2 PROVIDER=openai   # same dataset on another model; needs an OpenAI-compatible key in .env
 ```
 
 ## 7. Online evaluation (1 min)

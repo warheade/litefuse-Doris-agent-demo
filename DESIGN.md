@@ -96,6 +96,8 @@ sequenceDiagram
 
 **Per-project split tables.** This Litefuse build keeps each project's spans and trace summaries in their own tables, named with the project ID as a suffix. The worker creates them on the first trace a project receives, so they are absent right after `make up`. Because the ID becomes part of a table name, it must match `^[A-Za-z0-9_]+$`; the demo project ID is `agent_demo`.
 
+**30-day trace retention.** The worker creates both split tables with daily dynamic partitions and `"dynamic_partition.start" = "-30"`, so VeloDB drops each day's spans and trace summaries 30 days after that day. The shared `scores` and `dataset_run_items_rmt` tables are not partitioned this way and keep their rows. Older scores and experiment runs therefore point at traces that no longer exist, and demo data has to be regenerated shortly before each demo.
+
 **Schema bootstrap.** On every start, litefuse-web runs its Doris migrations: it creates the `litefuse` database if missing, then the shared tables (`scores`, `event_log`, `project_environments`, `blob_storage_file_log`, `dataset_run_items_rmt`, `schema_migrations`).
 
 ## The demo agent
@@ -279,7 +281,7 @@ All settings live in `.env`, read by both `docker compose` and the Python demo.
 
 ## Known issues and next steps
 
-First setup against a real warehouse hit eight problems, and two more showed up in the worker logs during the first two weeks of running. Eight are fixed or worked around in the repo; two are open in Litefuse.
+First setup against a real warehouse hit eight problems, two more showed up in the worker logs during the first two weeks of running, and the 30-day retention surfaced after six weeks. Nine are fixed or worked around in the repo; two are open in Litefuse.
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
@@ -293,6 +295,7 @@ First setup against a real warehouse hit eight problems, and two more showed up 
 | Public API v1 `GET /api/public/scores` returns an empty list while reporting the right total | Doris returns the joined trace's tags as a string, not an array; Litefuse's validation rejects each row and logs "Score parsing error" | Open: use `/api/public/v2/scores` or the UI, both unaffected; report upstream |
 | Worker logs `cloud-free-tier-usage-threshold-job ... stalled` | A Litefuse Cloud billing job that has nothing to do on a self-hosted stack | `QUEUE_CONSUMER_FREE_TIER_USAGE_THRESHOLD_QUEUE_IS_ENABLED=false` in `deploy/docker-compose.yml` |
 | Worker logs `Doris query failed: Connection lost` about once a day, between 01:00 and 03:00 UTC | The warehouse closes an open MySQL connection. The worker's pool already uses TCP keep-alive, and 26.2.0 exposes no idle-timeout setting | Open: harmless, because the next query reconnects. Check the warehouse's maintenance window if it happens during a demo |
+| Traces older than 30 days are gone, while their scores and experiment runs remain | The split tables keep 30 daily partitions (`dynamic_partition.start = -30`); `scores` and `dataset_run_items_rmt` have no such limit | Run `make simulate` and `make compare` within a day or two of each demo (WALKTHROUGH.md) |
 
 **Next steps:**
 
@@ -301,3 +304,4 @@ First setup against a real warehouse hit eight problems, and two more showed up 
 - [ ] Report the SDK field mismatch, the silent migration errors and the v1 scores API bug upstream to Litefuse.
 - [ ] Add a VeloDB SQL notebook that joins trace data with business tables, the strongest argument for keeping agent data in the warehouse.
 - [ ] Decide whether the demo standardises on Haiku 4.5 or adds a deliberately weaker v1 prompt, so the v1 versus v2 contrast holds on stronger models too.
+- [ ] Decide whether to keep traces longer than 30 days. Test whether raising `dynamic_partition.start` on the split tables sticks, or whether Litefuse resets it.
